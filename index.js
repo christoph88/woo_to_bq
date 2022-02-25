@@ -1,4 +1,5 @@
 require('env-yaml').config({ path: '.env.yaml' });
+const express = require('express');
 const axios = require('axios').default;
 const stream = require('stream');
 const { Storage } = require('@google-cloud/storage');
@@ -200,6 +201,21 @@ exports.run = async (req, res) => {
     res.status(200).send(saved);
   }
 };
+
+// Create an Express object and routes (in order)
+const app = express();
+app.use('/dataset/:datasetId/view/:viewId', getView);
+app.use('/dataset/:datasetId/table/:tableId', getTable);
+app.use('/dataset/:datasetId', getDataset);
+app.use('/backup', getBackup); //
+app.use(getHome);
+
+// Set our GCF handler to our Express app.
+exports.getTable = getTable;
+exports.getView = getView;
+exports.getDataset = getDataset;
+exports.getBackup = getBackup;
+exports.run = app;
 // Needed for Quokka
 // exports.run({ query: { page: 1 } }, null);
 // exports.run({ query: { getAmountOfPages: true } }, null);
