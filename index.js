@@ -34,7 +34,7 @@ const toBucket = (message, filename) =>
       })
       .on('finish', () => {
         // The file upload is complete.
-        const finish = `${filename} is uploaded!`;
+        const finish = `${filename} is stored on GCS!`;
         // eslint-disable-next-line no-console
         console.log(finish);
         resolve(finish);
@@ -202,19 +202,109 @@ exports.run = async (req, res) => {
   }
 };
 
+const getProductPage = async (req, res) => {
+  // get all tables within a dataset
+  const { page } = req.params;
+  console.log(req.params);
+
+  // eslint-disable-next-line camelcase
+  await getDatasetTables(datasetId);
+  res.status(200).send(`Storing product page ${page} to GCS.`);
+};
+
+const enqueueProducts = async (req, res) => {
+  // get all datasets
+  await getAllDatasets();
+  res.status(200).send(`
+    <h1>Enqueueing all product pages</h1>
+  `);
+};
+
+const getOrderPage = async (req, res) => {
+  // get all tables within a dataset
+  const { page } = req.params;
+  console.log(req.params);
+
+  // eslint-disable-next-line camelcase
+  const response = await axios
+    .get(process.env.ORDERS_ENDPOINT, {
+      params: {
+        per_page: process.env.PER_PAGE,
+        page,
+      },
+      auth: {
+        username: process.env.USERNAME,
+        password: process.env.PASSWORD,
+      },
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    });
+
+  const filename = `page_${pad(page, 3)}.jsonl`;
+
+  const jsonl = await toJsonl(response.data);
+
+  const saved = await toBucket(jsonl, filename);
+
+  res.status(200).send(saved);
+};
+
+const enqueueOrders = async (req, res) => {
+  // get all datasets
+  const response = await axios
+    .get(process.env.ORDERS_ENDPOINT, {
+      params: {
+        per_page: process.env.PER_PAGE,
+        page: 1,
+      },
+      auth: {
+        username: process.env.USERNAME,
+        password: process.env.PASSWORD,
+      },
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    });
+
+  // create tasks for all pages to get
+  const totalpages = response.headers['x-wp-totalpages'];
+  console.log(`${totalpages} pages to get.`);
+  const looped = await loopThroughPages(totalpages);
+
+  res.status(200).send(`
+    <h1>Enqueueing ${totalpages} order pages for GCS.</h1>
+  `);
+};
+
+const getHome = async (req, res) => {
+  res.status(200).send(`
+  <h1>Function to save woocommerce data to GCS</h1>
+  <h2>Routes</h2>
+    <ul>
+    <li>/products/:page > get a certain product page</li>
+    <li>/products/enqueue > enqueue all product pages</li>
+    <li>/orders/:page > get a certain order page</li>
+    <li>/orders/enqueue > enqueue all order pages</li>
+  </ul>
+  `);
+};
+
 // Create an Express object and routes (in order)
 const app = express();
-app.use('/dataset/:datasetId/view/:viewId', getView);
-app.use('/dataset/:datasetId/table/:tableId', getTable);
-app.use('/dataset/:datasetId', getDataset);
-app.use('/backup', getBackup); //
+app.use('/products/:page', getProductPage); //
+app.use('/products/enqueue', enqueueProducts); //
+app.use('/orders/:page', getOrderPage); //
+app.use('/orders/enqueue', enqueueOrders); //
 app.use(getHome);
 
 // Set our GCF handler to our Express app.
-exports.getTable = getTable;
-exports.getView = getView;
-exports.getDataset = getDataset;
-exports.getBackup = getBackup;
+exports.getOrderPage = getOrderPage;
+exports.enqueueOrders = enqueueOrders;
+exports.getProductPage = getProductPage;
+exports.enqueueProducts = enqueueProducts;
 exports.run = app;
 // Needed for Quokka
 // exports.run({ query: { page: 1 } }, null);
