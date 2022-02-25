@@ -95,18 +95,18 @@ const toJsonl = async (responseData) => {
 };
 
 /**
- * @param  {Number} index Pass the index which is used for scheduling
+ * @param  {Number} pageIndex Pass the index which is used for scheduling
  */
-async function createHttpTask(index) {
+async function createHttpTask(pageIndex, entity) {
   // Instantiates a client.
   const client = new CloudTasksClient();
   // TODO(developer): Uncomment these lines and replace with your values.
   const project = process.env.PROJECT;
   const queue = process.env.QUEUE;
   const location = process.env.LOCATION;
-  const url = `${process.env.ENDPOINT}?per_page=${process.env.PER_PAGE}&page=${index}`;
+  const url = `${process.env.ENDPOINT}/${entity}/${pageIndex}`;
   const payload = 'Hello, World!';
-  const inSeconds = index * 12;
+  const inSeconds = pageIndex * 12;
 
   // Construct the fully qualified queue name.
   const parent = client.queuePath(project, location, queue);
@@ -130,7 +130,7 @@ async function createHttpTask(index) {
   }
 
   // Send create task request.
-  console.log(`Sending task for page ${index}`);
+  console.log(`Sending task for page ${pageIndex}`);
   // console.log(task);
   const request = { parent, task };
   const [response] = await client.createTask(request);
@@ -149,7 +149,7 @@ const loopThroughPages = async (totalpages) => {
   // eslint-disable-next-line no-restricted-syntax
   for (const index of arr) {
     // pages start from 1 and not 0
-    const task = await createHttpTask(index + 1);
+    const task = await createHttpTask(index + 1, 'orders');
     console.log(task);
   }
 };
