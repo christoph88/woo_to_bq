@@ -135,10 +135,15 @@ async function createHttpTask(pageIndex, entity) {
   // Construct the fully qualified queue name.
   const parent = client.queuePath(project, location, queue);
 
+  // Authenticate cloud tasks
+  const serviceAccountEmail = process.env.SERVICE_ACCOUNT_EMAIL;
+  const audience = process.env.ENDPOINT;
+
   const task = {
     httpRequest: {
       httpMethod: 'POST',
       url,
+      oidcToken: { serviceAccountEmail, audience },
     },
   };
 
