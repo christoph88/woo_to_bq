@@ -291,10 +291,10 @@ const getHome = async (req, res) => {
 
 // Create an Express object and routes (in order)
 const app = express();
+app.use('/enqueue/products', enqueueProducts); //
+app.use('/enqueue/orders', enqueueOrders); //
 app.use('/products/:page', getProductPage); //
-app.use('/products/enqueue', enqueueProducts); //
 app.use('/orders/:page', getOrderPage); //
-app.use('/orders/enqueue', enqueueOrders); //
 app.use(getHome);
 
 // Set our GCF handler to our Express app.
