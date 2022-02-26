@@ -4,11 +4,12 @@ const axios = require('axios').default;
 const stream = require('stream');
 const { Storage } = require('@google-cloud/storage');
 const { CloudTasksClient } = require('@google-cloud/tasks');
-const { resolve } = require('path');
 
 /**
- * @param  {String} message message to save as file
- * @param  {String} filename filename to be used
+ * Save text to cloud storage bucket.
+ * @param  {string} message the message which needs to be saved.
+ * @param  {string} filename the filename.
+ * @param  {string} entity orders or products.
  */
 const toBucket = (message, filename, entity) =>
   new Promise((resolve, reject) => {
@@ -46,8 +47,9 @@ const toBucket = (message, filename, entity) =>
   });
 
 /**
- * @param  {number} number the number where you want to add padding to
- * @param  {number} size the total length of the number encluding padding
+ * Add leading zeros to a number.
+ * @param  {number} number the number where you want to add padding to.
+ * @param  {number} size the total length of the number encluding padding.
  */
 const pad = (number, size) => {
   let s = String(number);
@@ -58,7 +60,8 @@ const pad = (number, size) => {
 };
 
 /**
- * @param  {Object} data Woocommerce response.data
+ * Extract fields for order export.
+ * @param  {Object} data Woocommerce response.data.
  */
 const extractOrder = async (data) => {
   const model = {
@@ -89,7 +92,8 @@ const extractOrder = async (data) => {
 };
 
 /**
- * @param  {Object} data Woocommerce response.data
+ * Extract fields for product export.
+ * @param  {Object} data Woocommerce response.data.
  */
 const extractProduct = async (data) => {
   const model = {
@@ -101,9 +105,10 @@ const extractProduct = async (data) => {
   };
   return `${JSON.stringify(model)}\n`;
 };
-
 /**
- * @param  {Object} responseData Woocommerce response.data object
+ * Format extracts as jsonl and join them for BQ import.
+ * @param  {string} responseData woocommerce response.data object.
+ * @param  {string} entity products or orders.
  */
 const toJsonl = async (responseData, entity) => {
   const rows = await Promise.all(
@@ -117,9 +122,10 @@ const toJsonl = async (responseData, entity) => {
   // join all lines as one string with no join symbol
   return rows.join('');
 };
-
 /**
- * @param  {Number} pageIndex Pass the index which is used for scheduling
+ * Get response from Woocommerce api.
+ * @param  {string} pageIndex The page you want to download.
+ * @param  {string} entity Orders or products.
  */
 async function createHttpTask(pageIndex, entity) {
   // Instantiates a client.
@@ -159,6 +165,7 @@ async function createHttpTask(pageIndex, entity) {
   }
 
   // Send create task request.
+  // eslint-disable-next-line no-console
   console.log(`Sending task for page ${pageIndex}`);
   // console.log(task);
   const request = { parent, task };
@@ -168,17 +175,21 @@ async function createHttpTask(pageIndex, entity) {
 
 /**
  *
- * Loop through pages and create http tasks
+ * Loop through pages and create http tasks.
  *
- * @param  {Number} totalpages pass the amount of pages to loop through
+ * @param  {Number} totalpages pass the amount of pages to loop through.
+ * @param  {string} entity orders or products.
  */
 const enqueuePages = async (totalpages, entity) => {
+  // eslint-disable-next-line radix
   const arr = Array.from(Array(parseInt(totalpages)).keys());
 
   // eslint-disable-next-line no-restricted-syntax
   for (const index of arr) {
     // pages start from 1 and not 0
+    // eslint-disable-next-line no-await-in-loop
     const task = await createHttpTask(index + 1, entity);
+    // eslint-disable-next-line no-console
     console.log(task);
   }
 };
@@ -214,6 +225,7 @@ const getWoo = async (entity, page) => {
 const getProductPage = async (req, res) => {
   // get all tables within a dataset
   const { page } = req.params;
+  // eslint-disable-next-line no-console
   console.log(req.params);
 
   const entity = 'products';
@@ -238,6 +250,7 @@ const enqueueProducts = async (req, res) => {
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
+  // eslint-disable-next-line no-console
   console.log(`${totalpages} pages to get.`);
   await enqueuePages(totalpages, entity);
 
@@ -249,6 +262,7 @@ const enqueueProducts = async (req, res) => {
 const getOrderPage = async (req, res) => {
   // get all tables within a dataset
   const { page } = req.params;
+  // eslint-disable-next-line no-console
   console.log(req.params);
 
   const entity = 'orders';
@@ -273,6 +287,7 @@ const enqueueOrders = async (req, res) => {
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
+  // eslint-disable-next-line no-console
   console.log(`${totalpages} pages to get.`);
   await enqueuePages(totalpages, entity);
 
@@ -308,6 +323,3 @@ exports.enqueueOrders = enqueueOrders;
 exports.getProductPage = getProductPage;
 exports.enqueueProducts = enqueueProducts;
 exports.run = app;
-// Needed for Quokka
-// exports.run({ query: { page: 1 } }, null);
-// exports.run({ query: { getAmountOfPages: true } }, null);
