@@ -10,7 +10,7 @@ const { resolve } = require('path');
  * @param  {String} message message to save as file
  * @param  {String} filename filename to be used
  */
-const toBucket = (message, filename) =>
+const toBucket = (message, filename, entity) =>
   new Promise((resolve, reject) => {
     const storage = new Storage();
     // Initiate the source
@@ -18,7 +18,9 @@ const toBucket = (message, filename) =>
     // Write your buffer
     bufferStream.end(Buffer.from(message));
 
-    const myBucket = storage.bucket(process.env.BUCKET);
+    const myBucket = storage.bucket(
+      process.env[`${entity.toUpperCase()}_BUCKET`]
+    );
     const file = myBucket.file(filename);
     // Pipe the 'bufferStream' into a 'file.createWriteStream' method.
     bufferStream
@@ -56,8 +58,8 @@ const pad = (number, size) => {
 /**
  * @param  {Object} data Woocommerce response.data
  */
-const extract = async (data) => {
-  const extractedRow = {
+const extractOrder = async (data) => {
+  const model = {
     id: data.id,
     status: data.status,
     date_created: data.date_created,
@@ -81,14 +83,37 @@ const extract = async (data) => {
     coupon_lines_discount_tax: data.coupon_lines.discount_tax,
     line_items: JSON.stringify(data.line_items),
   };
-  return `${JSON.stringify(extractedRow)}\n`;
+  return `${JSON.stringify(model)}\n`;
+};
+
+/**
+ * @param  {Object} data Woocommerce response.data
+ */
+const extractProduct = async (data) => {
+  const model = {
+    id: data.id,
+    name: data.name,
+    slug: data.slug,
+    permalink: data.permalink,
+    virtual: data.virtual,
+  };
+  return `${JSON.stringify(model)}\n`;
 };
 
 /**
  * @param  {Object} responseData Woocommerce response.data object
  */
-const toJsonl = async (responseData) => {
-  const rows = await Promise.all(responseData.map(async (row) => extract(row)));
+const toJsonl = async (responseData, entity) => {
+  const rows = await Promise.all(
+    responseData.map(async (row) => {
+      if (entity === 'orders') {
+        extractOrder(row, entity);
+      }
+      if (entity === 'products') {
+        extractProduct(row, entity);
+      }
+    })
+  );
 
   // join all lines as one string with no join symbol
   return rows.join('');
@@ -143,13 +168,13 @@ async function createHttpTask(pageIndex, entity) {
  *
  * @param  {Number} totalpages pass the amount of pages to loop through
  */
-const loopThroughPages = async (totalpages) => {
+const enqueuePages = async (totalpages, entity) => {
   const arr = Array.from(Array(parseInt(totalpages)).keys());
 
   // eslint-disable-next-line no-restricted-syntax
   for (const index of arr) {
     // pages start from 1 and not 0
-    const task = await createHttpTask(index + 1, 'orders');
+    const task = await createHttpTask(index + 1, entity);
     console.log(task);
   }
 };
@@ -162,16 +187,45 @@ const loopThroughPages = async (totalpages) => {
  * @param {Object} res Cloud Function response context.
  *                     More info: https://expressjs.com/en/api.html#res
  */
-exports.run = async (req, res) => {
-  const { page, getAmountOfPages } = req.query;
-  // eslint-disable-next-line camelcase
-  const per_page = process.env.PER_PAGE;
 
+const getProductPage = async (req, res) => {
+  // get all tables within a dataset
+  const { page } = req.params;
+  console.log(req.params);
+
+  // eslint-disable-next-line camelcase
   const response = await axios
-    .get(process.env.URL, {
+    .get(process.env.PRODUCTS_ENDPOINT, {
       params: {
-        per_page,
-        page: page || 1,
+        per_page: process.env.PER_PAGE,
+        page,
+      },
+      auth: {
+        username: process.env.USERNAME,
+        password: process.env.PASSWORD,
+      },
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    });
+
+  const filename = `page_${pad(page, 3)}.jsonl`;
+
+  const jsonl = await toJsonl(response.data, 'products');
+
+  const saved = await toBucket(jsonl, filename, 'products');
+
+  res.status(200).send(saved);
+};
+
+const enqueueProducts = async (req, res) => {
+  // get all datasets
+  const response = await axios
+    .get(process.env.PRODUCTS_ENDPOINT, {
+      params: {
+        per_page: process.env.PER_PAGE,
+        page: 1,
       },
       auth: {
         username: process.env.USERNAME,
@@ -184,39 +238,12 @@ exports.run = async (req, res) => {
     });
 
   // create tasks for all pages to get
-  if (getAmountOfPages === 'true') {
-    const totalpages = response.headers['x-wp-totalpages'];
-    console.log(`${totalpages} pages to get.`);
-    const looped = await loopThroughPages(totalpages);
-    res.status(200).send(`created ${totalpages} tasks`);
-  }
+  const totalpages = response.headers['x-wp-totalpages'];
+  console.log(`${totalpages} pages to get.`);
+  await enqueuePages(totalpages, 'products');
 
-  // get a single page
-  if (getAmountOfPages !== 'true') {
-    const filename = `page_${pad(page, 3)}.jsonl`;
-
-    const jsonl = await toJsonl(response.data);
-
-    const saved = await toBucket(jsonl, filename);
-    res.status(200).send(saved);
-  }
-};
-
-const getProductPage = async (req, res) => {
-  // get all tables within a dataset
-  const { page } = req.params;
-  console.log(req.params);
-
-  // eslint-disable-next-line camelcase
-  await getDatasetTables(datasetId);
-  res.status(200).send(`Storing product page ${page} to GCS.`);
-};
-
-const enqueueProducts = async (req, res) => {
-  // get all datasets
-  await getAllDatasets();
   res.status(200).send(`
-    <h1>Enqueueing all product pages</h1>
+    <h1>Enqueueing ${totalpages} order pages for GCS.</h1>
   `);
 };
 
@@ -244,9 +271,9 @@ const getOrderPage = async (req, res) => {
 
   const filename = `page_${pad(page, 3)}.jsonl`;
 
-  const jsonl = await toJsonl(response.data);
+  const jsonl = await toJsonl(response.data, 'orders');
 
-  const saved = await toBucket(jsonl, filename);
+  const saved = await toBucket(jsonl, filename, 'orders');
 
   res.status(200).send(saved);
 };
@@ -272,7 +299,7 @@ const enqueueOrders = async (req, res) => {
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
   console.log(`${totalpages} pages to get.`);
-  const looped = await loopThroughPages(totalpages);
+  await enqueuePages(totalpages, 'orders');
 
   res.status(200).send(`
     <h1>Enqueueing ${totalpages} order pages for GCS.</h1>
