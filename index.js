@@ -36,7 +36,9 @@ const toBucket = (message, filename, entity) =>
       })
       .on('finish', () => {
         // The file upload is complete.
-        const finish = `${filename} is stored on GCS!`;
+        const finish = `${filename} is stored on GCS bucket ${
+          process.env[`${entity.toUpperCase()}_BUCKET`]
+        }!`;
         // eslint-disable-next-line no-console
         console.log(finish);
         resolve(finish);
@@ -105,14 +107,11 @@ const extractProduct = async (data) => {
  */
 const toJsonl = async (responseData, entity) => {
   const rows = await Promise.all(
-    responseData.map(async (row) => {
-      if (entity === 'orders') {
-        extractOrder(row, entity);
-      }
-      if (entity === 'products') {
-        extractProduct(row, entity);
-      }
-    })
+    responseData.map(
+      async (row) =>
+        (entity === 'products' && extractProduct(row)) ||
+        (entity === 'orders' && extractOrder(row))
+    )
   );
 
   // join all lines as one string with no join symbol
