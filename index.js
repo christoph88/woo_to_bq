@@ -179,7 +179,7 @@ const enqueuePages = async (totalpages, entity) => {
   }
 };
 
-const getWoo = async (entity) => {
+const getWoo = async (entity, page) => {
   const endpoint = `${entity.toUpperCase()}_ENDPOINT`;
   return axios
     .get(process.env[endpoint], {
@@ -214,7 +214,7 @@ const getProductPage = async (req, res) => {
 
   const entity = 'products';
 
-  const response = await getWoo(entity);
+  const response = await getWoo(entity, page);
 
   const filename = `page_${pad(page, 3)}.jsonl`;
 
@@ -228,8 +228,9 @@ const getProductPage = async (req, res) => {
 const enqueueProducts = async (req, res) => {
   // get all datasets
   const entity = 'products';
+  const page = 1;
 
-  const response = await getWoo(entity);
+  const response = await getWoo(entity, page);
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
@@ -248,7 +249,7 @@ const getOrderPage = async (req, res) => {
 
   const entity = 'orders';
 
-  const response = await getWoo(entity);
+  const response = await getWoo(entity, page);
 
   const filename = `page_${pad(page, 3)}.jsonl`;
 
@@ -262,8 +263,9 @@ const getOrderPage = async (req, res) => {
 const enqueueOrders = async (req, res) => {
   // get all datasets
   const entity = 'orders';
+  const page = 1;
 
-  const response = await getWoo(entity);
+  const response = await getWoo(entity, page);
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
