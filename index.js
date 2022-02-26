@@ -179,6 +179,25 @@ const enqueuePages = async (totalpages, entity) => {
   }
 };
 
+const getWoo = async (entity) => {
+  const endpoint = `${entity.toUpperCase()}_ENDPOINT`;
+  return axios
+    .get(process.env[endpoint], {
+      params: {
+        per_page: process.env.PER_PAGE,
+        page,
+      },
+      auth: {
+        username: process.env.USERNAME,
+        password: process.env.PASSWORD,
+      },
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    });
+};
+
 /**
  * HTTP Cloud Function.
  *
@@ -193,54 +212,29 @@ const getProductPage = async (req, res) => {
   const { page } = req.params;
   console.log(req.params);
 
-  // eslint-disable-next-line camelcase
-  const response = await axios
-    .get(process.env.PRODUCTS_ENDPOINT, {
-      params: {
-        per_page: process.env.PER_PAGE,
-        page,
-      },
-      auth: {
-        username: process.env.USERNAME,
-        password: process.env.PASSWORD,
-      },
-    })
-    .catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error(error);
-    });
+  const entity = 'products';
+
+  const response = await getWoo(entity);
 
   const filename = `page_${pad(page, 3)}.jsonl`;
 
-  const jsonl = await toJsonl(response.data, 'products');
+  const jsonl = await toJsonl(response.data, entity);
 
-  const saved = await toBucket(jsonl, filename, 'products');
+  const saved = await toBucket(jsonl, filename, entity);
 
   res.status(200).send(saved);
 };
 
 const enqueueProducts = async (req, res) => {
   // get all datasets
-  const response = await axios
-    .get(process.env.PRODUCTS_ENDPOINT, {
-      params: {
-        per_page: process.env.PER_PAGE,
-        page: 1,
-      },
-      auth: {
-        username: process.env.USERNAME,
-        password: process.env.PASSWORD,
-      },
-    })
-    .catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error(error);
-    });
+  const entity = 'products';
+
+  const response = await getWoo(entity);
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
   console.log(`${totalpages} pages to get.`);
-  await enqueuePages(totalpages, 'products');
+  await enqueuePages(totalpages, entity);
 
   res.status(200).send(`
     <h1>Enqueueing ${totalpages} order pages for GCS.</h1>
@@ -252,54 +246,29 @@ const getOrderPage = async (req, res) => {
   const { page } = req.params;
   console.log(req.params);
 
-  // eslint-disable-next-line camelcase
-  const response = await axios
-    .get(process.env.ORDERS_ENDPOINT, {
-      params: {
-        per_page: process.env.PER_PAGE,
-        page,
-      },
-      auth: {
-        username: process.env.USERNAME,
-        password: process.env.PASSWORD,
-      },
-    })
-    .catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error(error);
-    });
+  const entity = 'orders';
+
+  const response = await getWoo(entity);
 
   const filename = `page_${pad(page, 3)}.jsonl`;
 
-  const jsonl = await toJsonl(response.data, 'orders');
+  const jsonl = await toJsonl(response.data, entity);
 
-  const saved = await toBucket(jsonl, filename, 'orders');
+  const saved = await toBucket(jsonl, filename, entity);
 
   res.status(200).send(saved);
 };
 
 const enqueueOrders = async (req, res) => {
   // get all datasets
-  const response = await axios
-    .get(process.env.ORDERS_ENDPOINT, {
-      params: {
-        per_page: process.env.PER_PAGE,
-        page: 1,
-      },
-      auth: {
-        username: process.env.USERNAME,
-        password: process.env.PASSWORD,
-      },
-    })
-    .catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error(error);
-    });
+  const entity = 'orders';
+
+  const response = await getWoo(entity);
 
   // create tasks for all pages to get
   const totalpages = response.headers['x-wp-totalpages'];
   console.log(`${totalpages} pages to get.`);
-  await enqueuePages(totalpages, 'orders');
+  await enqueuePages(totalpages, entity);
 
   res.status(200).send(`
     <h1>Enqueueing ${totalpages} order pages for GCS.</h1>
