@@ -98,10 +98,19 @@ const extractOrder = async (data) => {
 const extractProduct = async (data) => {
   const model = {
     id: data.id,
+    sku: data.sku,
     name: data.name,
+    description: data.description,
     slug: data.slug,
     permalink: data.permalink,
     virtual: data.virtual,
+    price: data.price,
+    status: data.status,
+    purchasable: data.purchasable,
+    catalog_visibility: data.catalog_visibility,
+    images: JSON.stringify(data.images),
+    metadata: JSON.stringify(data.metadata),
+    categories: JSON.stringify(data.categories),
   };
   return `${JSON.stringify(model)}\n`;
 };
